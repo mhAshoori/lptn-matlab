@@ -17,7 +17,7 @@ power_nodes = data_nodes_power_losses(:,2);
 % Capacitance of each Node
 data_nodes_capacitances = readmatrix('input-nodes-capacitances.xlsx');
 
-capacitance_nodes = data_nodes_capacitances(:,2);
+capacitance_nodes_vector = data_nodes_capacitances(:,2);
 
 % Fixed Nodes & Temperatures
 
@@ -47,11 +47,11 @@ for j =1:length(fixed_nodes)
 
     power_nodes(fixedIndex) = [];
 
-    capacitance_nodes(fixedIndex) = [];
+    capacitance_nodes_vector(fixedIndex) = [];
 
 end
 
-capacitance_nodes = diag(capacitance_nodes);
+
 
 
 %% Auto Assemble Resistance Matrix
@@ -105,17 +105,6 @@ for i = 1 : length(nodes_start)
 
 end
 
-% CHECK LOGIC convert "zero" capacitances to "-Inf"
-
-%(**************************** CHECK THE LOGIC **********************
-
-for ii = 1:length(capacitance_nodes(:,1))
-    if capacitance_nodes(ii,ii) == 0
-        capacitance_nodes(ii,ii) = -Inf;
-    end
-end
-
-%*********************************************************************)
 
 %% STEADY-STATE SOLUTION
 
@@ -145,3 +134,41 @@ results_table. Properties. VariableNames = {'Nodes Labels','Steady Temperatures 
 
 writetable(results_table,'output-steady-temperatures.xlsx')
 
+%% Prepare DATA for Transient Solution
+
+nonzero_capacitannce_nodes = capacitance_nodes_vector;
+ii = 0;
+zero_index = double.empty;
+nonzero_index = double.empty;
+for i = 1:length(capacitance_nodes_vector(:,1))
+    ii = ii+1;
+    if capacitance_nodes_vector(i) == 0
+       nonzero_capacitannce_nodes(ii) = [];
+     %  nonzero_capacitannce_nodes(ii) = [];
+       ii=ii-1;
+       % find the index of ZERO capacitance elements
+       zero_index = [zero_index;i];
+    else
+        % find the index of NONZERO capacitance elements
+        nonzero_index = [nonzero_index;i];
+    end
+end
+
+% REORDER matrixes of Resistance, Power Loss & Capacitance
+
+modified_resistance_matrix = resisMatrix([nonzero_index;zero_index],:);
+modified_const_vector = constVector([nonzero_index;zero_index],:);
+modified_capacitances_vector = capacitance_nodes_vector([nonzero_index;zero_index],:);
+
+% convert capacitance vector to matrix
+modified_capacitance_matrix = diag(modified_capacitances_vector);
+
+C1 = modified_capacitance_matrix(1:ii,1:ii);
+
+A1 = modified_resistance_matrix(1:ii,1:ii);
+A2 = modified_resistance_matrix(1:ii,ii+1:end);
+A3 = modified_resistance_matrix(ii+1:end,1:ii);
+A4 = modified_resistance_matrix(ii+1:end,ii+1:end);
+
+B1 = modified_const_vector(1:ii);
+B2 = modified_const_vector(ii+1:end);
