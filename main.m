@@ -31,15 +31,15 @@ fixed_nodes_temp = data_fixed_nodes(:,2);
 
 %% modify imported DATA
 
-
-
+% merge start & end nodes
 start_end = [nodes_start,nodes_end];
 unique_nodes = unique(start_end(:).')';
 
-unique_nodes = sort(unique_nodes);
+% sort nodes
+ sort(unique_nodes);
 
 
-% supress Cooling water Jacket power loss % capacitance
+% supress fixed nodes: cooling water jacket, power loss & capacitance
 
 for j =1:length(fixed_nodes)
 
@@ -63,15 +63,12 @@ unknown_nodes ( ismember(unique_nodes,fixed_nodes)) = [];
 
 resisMatrix = zeros(length(unknown_nodes));
 
-
-
  % constVector = zeros(length(unknown_nodes),1);
 
  constVector = power_nodes ;
 
-
 for i = 1 : length(nodes_start)
-    % constIndex = 0;
+  
     startIndex = find(unknown_nodes == nodes_start(i));
     endIndex = find(unknown_nodes == nodes_end(i));
     % assign zero to empty double
@@ -84,8 +81,7 @@ for i = 1 : length(nodes_start)
 
     % assign Resistance values to NONDIAGONAL unknown Elements
     if ~(ismember(nodes_start(i),fixed_nodes) || ismember(nodes_end(i),fixed_nodes))
-        % constIndex = constIndex+1;
-
+        
         resisMatrix(startIndex,endIndex) = thermal_resis(i)^-1;
         resisMatrix(endIndex,startIndex) = thermal_resis(i)^-1;
 
@@ -101,8 +97,6 @@ for i = 1 : length(nodes_start)
             fixedIndex = find(fixed_nodes==endIndex);
         end
         
-        
-
         % assign Generated Power by fixed point and its Resistance
         constVector(constIndex) = fixed_nodes_temp(fixedIndex) *thermal_resis(i)^-1;
         % assign resis values to DIAGONAL elements
@@ -110,7 +104,6 @@ for i = 1 : length(nodes_start)
     end
 
 end
-
 
 % CHECK LOGIC convert "zero" capacitances to "-Inf"
 
@@ -128,7 +121,7 @@ end
 
 T_steady = -resisMatrix\constVector;
 
-%% add fixed nodes to the final solution
+%% add fixed nodes to the final Steady solution
 
 T_all = T_steady;
 
@@ -139,8 +132,6 @@ for j =1:length(fixed_nodes)
    fixedIndex = find(unique_nodes == fixed_nodes(j));
 
    T_all = insert(fixed_nodes_temp(j),T_all,fixedIndex,align(j));
-
-   
 
 end
 
