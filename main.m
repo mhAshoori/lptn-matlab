@@ -112,7 +112,8 @@ T_steady = -resisMatrix\constVector;
 
 %% add fixed nodes to the final Steady solution
 
-T_all = T_steady;
+% T_all_steady includes the fixed nodes too
+T_all_steady = T_steady;
 
 align = [-1,-1];
 
@@ -120,21 +121,25 @@ for j =1:length(fixed_nodes)
 
    fixedIndex = find(unique_nodes == fixed_nodes(j));
 
-   T_all = insert(fixed_nodes_temp(j),T_all,fixedIndex,align(j));
+   T_all_steady = insert(fixed_nodes_temp(j),T_all_steady,fixedIndex,align(j));
 
 end
 
-%% get the Nodes Lables and Make the Result TAble as xlsx
+%% get the Nodes Lables and Make the Steady Result Table as .xlsx
 
 data_nodes_labels = readtable('input-nodes-labels.xlsx');
 
-results_table = [data_nodes_labels(:,2),table(T_all)];
+results_table_steady = [data_nodes_labels(:,2),table(T_all_steady)];
 
-results_table. Properties. VariableNames = {'Nodes Labels','Steady Temperatures [°C]'};
+results_table_steady. Properties. VariableNames = {'Nodes Labels','Steady Temperatures [°C]'};
 
-writetable(results_table,'output-steady-temperatures.xlsx')
+writetable(results_table_steady,'output-steady-temperatures.xlsx')
 
 %% Prepare DATA for Transient Solution
+
+global A B
+
+if ismember(0,capacitance_nodes_vector)
 
 nonzero_capacitannce_nodes = capacitance_nodes_vector;
 ii = 0;
@@ -154,9 +159,9 @@ for i = 1:length(capacitance_nodes_vector(:,1))
     end
 end
 
-% REORDER matrixes of Resistance, Power Loss & Capacitance
+% REORDER matrixes of Power Loss & Capacitance
 
-modified_resistance_matrix = resisMatrix([nonzero_index;zero_index],:);
+%%%% [THIS LINE IS WRONG] modified_resistance_matrix = resisMatrix([nonzero_index;zero_index],:);
 modified_const_vector = constVector([nonzero_index;zero_index],:);
 modified_capacitances_vector = capacitance_nodes_vector([nonzero_index;zero_index],:);
 
@@ -165,10 +170,128 @@ modified_capacitance_matrix = diag(modified_capacitances_vector);
 
 C1 = modified_capacitance_matrix(1:ii,1:ii);
 
+% modify (reorder) Constant vector
+
+B1 = modified_const_vector(1:ii);
+B2 = modified_const_vector(ii+1:end);
+
+% MAKE MODIFIED resis matrix
+
+modified_resistance_matrix = ...
+    makeResisMatrix...
+    ([nonzero_index;zero_index],data_nodes_resistances,fixed_nodes);
+
+%%%%%%%%%%% this line a just added to check the idea of replacing
+%%%%%%%%%%% the DIAGONAL OF RESISMATRIX WITH MODIFIED ONE  %%%%%%%%%%%
+
+mainResisMatrixDiag = diag(resisMatrix);
+
+modifiedResisMatrixDiag = mainResisMatrixDiag([nonzero_index;zero_index],:);
+
+for i = 1:length(resisMatrix(:,1))
+    modified_resistance_matrix(i,i) = modifiedResisMatrixDiag(i);
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%% THE ABOVE IDEA SEEMS TO BE WORKING AS THE DATA IS PHYSICALLY RIGHT
+%%%%%% %%%
 A1 = modified_resistance_matrix(1:ii,1:ii);
 A2 = modified_resistance_matrix(1:ii,ii+1:end);
 A3 = modified_resistance_matrix(ii+1:end,1:ii);
 A4 = modified_resistance_matrix(ii+1:end,ii+1:end);
 
-B1 = modified_const_vector(1:ii);
-B2 = modified_const_vector(ii+1:end);
+A = C1\(A1-A2*(A4\A3));
+ 
+B = C1\(B1-(A2*(A4\B2)));
+
+
+else
+
+    A = diag(capacitance_nodes_vector) \  resisMatrix;
+
+    B = diag(capacitance_nodes_vector) \ constVector;
+end
+
+%% Transient Solution
+
+
+
+% B = C1\(B1) ;
+
+% Initialization and Solution
+
+T0 = ones(ii,1)*70;
+
+[t,T_transient_nonzero] = ode45(@lptn_ode,[0 10000],T0);
+
+% find zero capacitance nodes Temperatures
+T_transient_zero = -A4\A3*T_transient_nonzero';
+
+T_transient_zero = T_transient_zero';
+
+% combine NONZERO & ZERO Solutions of final timespan
+T_transient_END = [T_transient_nonzero(end,:)';T_transient_zero(end,:)'];
+
+%T_transient_END = T_transient_END([nonzero_index;zero_index],:);
+
+modified_index = [nonzero_index;zero_index];
+
+stored_indexes = double.empty;
+
+for i =1 :length(modified_index)
+
+    if i ~=modified_index(i) && ~ismember(i,stored_indexes)
+        temp1 = T_transient_END(i);
+        temp2 = T_transient_END(modified_index(i));
+        stored_indexes = [stored_indexes;i,modified_index(i)];
+        T_transient_END(i) = temp2;
+        T_transient_END(modified_index(i)) = temp1;
+        
+    end
+
+end
+
+%T_transient_END = [T_transient_END(2:end);T_transient_END(1)];
+
+%% add fixed nodes to the final Steady solution
+
+% T_all_transient includes the fixed nodes too
+T_all_transient = T_transient_END;
+
+align = [-1,-1];
+
+for j =1:length(fixed_nodes)
+
+   fixedIndex = find(unique_nodes == fixed_nodes(j));
+
+   T_all_transient = insert(fixed_nodes_temp(j),T_all_transient,fixedIndex,align(j));
+
+end
+
+ 
+%% get the Nodes Lables and Make the TRANSIENT Results Table as .xlsx
+
+% THIS VARIABLE IS ALLREADY DEFINED 
+% data_nodes_labels = readtable('input-nodes-labels.xlsx');
+
+results_table_transient = [data_nodes_labels(:,2),table(T_all_transient)];
+
+results_table_transient . Properties. VariableNames = {'Nodes Labels','End of TimeSpan Transient Temperatures [°C]'};
+
+writetable(results_table_transient ,'output-transient-temperatures.xlsx')
+
+%% calculate the difference between Transient and Steady Solution
+
+%%% THIS PART WILL BE IMPLEMENTED LATER
+% % % % max(T_all_steady-T_all_transient)
+% % % 
+% % % sol_combined = [T_all_steady,T_all_transient,abs((T_all_transient-T_all_steady)./T_all_steady)*100];
+% % % 
+% % % results_table_combined = array2table([data_nodes_labels(:,2),table(sol_combined)]);
+% % % 
+% % % results_table_combined . Properties. VariableNames = {'Nodes Labels','Steady Temperatures [°C]','Transient Temperatures [°C]','Error [%]'};
+% % % 
+% % % writetable(results_table_combined ,'output-combined-temperatures-error.xlsx')
+
+
