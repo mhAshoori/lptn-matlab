@@ -5,9 +5,12 @@ clc; clear; close all;
 % Node to Node Resistances
 data_nodes_resistances = readmatrix('input-node-to-node-resistances.xlsx');
 
+% THERMAL RESIS VALUES IS IMPORTTED THROUGH .RMF FILE SEE LINE [ 42 - 60 ]
+% so 3rd lines commented
+
 nodes_start = data_nodes_resistances(:,1);
 nodes_end = data_nodes_resistances(:,2);
-thermal_resis = data_nodes_resistances(:,3);
+% % thermal_resis = data_nodes_resistances(:,3);
 
 % Power losses of each Node
 data_nodes_power_losses = readmatrix('input-nodes-power-losses.xlsx');
@@ -28,9 +31,6 @@ fixed_nodes = data_fixed_nodes(:,1);
 fixed_nodes_temp = data_fixed_nodes(:,2);
 
 
-
-%% modify imported DATA
-
 % merge start & end nodes
 start_end = [nodes_start,nodes_end];
 unique_nodes = unique(start_end(:).')';
@@ -38,6 +38,39 @@ unique_nodes = unique(start_end(:).')';
 % sort nodes
  sort(unique_nodes);
 
+
+%% [NEW] get RESIS MATRIX from .RMF matrix data of MOTOR-CAD
+
+data_rmf_resis_matrix = readmatrix('input-rmf-resis-matrix.xlsx');
+
+% % % data_rmf_resis_matrix == data_rmf_resis_matrix';
+% % % 
+% % % if ~issymmetric (data_rmf_resis_matrix)
+% % %     error('imported resistance matrix is NOT SYMMETRIC')
+% % % end
+
+k = 0;
+imported_resis_matrix = zeros(1);
+for i = 1:length(data_rmf_resis_matrix(1,:))
+    for j = i:length(data_rmf_resis_matrix(:,1))
+        if ~ismember(data_rmf_resis_matrix(i,j),[0,1e9,2e9,3e9,4e9])
+            k = k+1;
+            imported_resis_matrix(k,1) = unique_nodes(i);
+            imported_resis_matrix(k,2) = unique_nodes(j);
+            imported_resis_matrix(k,3) = data_rmf_resis_matrix(i,j);
+        end
+    end
+end
+
+
+nodes_start = imported_resis_matrix(:,1);
+nodes_end = imported_resis_matrix(:,2);
+thermal_resis = imported_resis_matrix(:,3);
+
+%%% imported_resis_matrix - data_nodes_resistances
+
+
+%% modify imported DATA
 
 % supress fixed nodes: cooling water jacket, power loss & capacitance
 
