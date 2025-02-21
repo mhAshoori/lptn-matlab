@@ -73,15 +73,16 @@ thermal_resis = imported_resis_matrix(:,3);
 %% modify imported DATA
 
 % supress fixed nodes: cooling water jacket, power loss & capacitance
-
+k = 0;
 for j =1:length(fixed_nodes)
 
     fixedIndex = find(unique_nodes == fixed_nodes(j));
 
-    power_nodes(fixedIndex) = [];
+    power_nodes(fixedIndex - k) = [];
 
-    capacitance_nodes_vector(fixedIndex) = [];
-
+    capacitance_nodes_vector(fixedIndex - k) = [];
+    
+    k = k+1;
 end
 
 
@@ -131,7 +132,7 @@ for i = 1 : length(nodes_start)
         end
         
         % assign Generated Power by fixed point and its Resistance
-        constVector(constIndex) = fixed_nodes_temp(fixedIndex) *thermal_resis(i)^-1;
+        constVector(constIndex) = constVector(constIndex) +  fixed_nodes_temp(fixedIndex) *thermal_resis(i)^-1;
         % assign resis values to DIAGONAL elements
         resisMatrix(constIndex,constIndex) = resisMatrix(constIndex,constIndex) - thermal_resis(i)^-1;
     end
