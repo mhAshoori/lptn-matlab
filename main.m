@@ -317,15 +317,30 @@ writetable(results_table_transient ,'output-transient-temperatures.xlsx')
 
 %% calculate the difference between Transient and Steady Solution
 
-%%% THIS PART WILL BE IMPLEMENTED LATER
-% % % % max(T_all_steady-T_all_transient)
-% % % 
-% % % sol_combined = [T_all_steady,T_all_transient,abs((T_all_transient-T_all_steady)./T_all_steady)*100];
-% % % 
-% % % results_table_combined = array2table([data_nodes_labels(:,2),table(sol_combined)]);
-% % % 
-% % % results_table_combined . Properties. VariableNames = {'Nodes Labels','Steady Temperatures [°C]','Transient Temperatures [°C]','Error [%]'};
-% % % 
-% % % writetable(results_table_combined ,'output-combined-temperatures-error.xlsx')
+T_all_ref = readmatrix('input-ref-temperatures.xlsx');
+
+T_all_ref(:,1) = [];
+
+err_steady = abs((T_all_steady-T_all_ref)./T_all_ref)*100;
+
+err_transient = abs((T_all_transient- ...
+    T_all_ref)./T_all_ref)*100;
+
+results_table_combined = [data_nodes_labels(:,2),...
+    table(T_all_ref,...
+    T_all_steady,...
+    err_steady,...
+    T_all_transient,...
+    err_transient)];
+
+results_table_combined . Properties. VariableNames = ...
+    {'Nodes Labels',...
+    'Ref. Temperatures [°C]',...
+    'Steady Temperatures [°C]',...
+    'Error Steady [%]',...
+    'Transient Temperatures [°C]',...
+    'Error Transient [%]'};
+
+writetable(results_table_combined ,'output-all-temperatures-error.xlsx')
 
 
