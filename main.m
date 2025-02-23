@@ -10,7 +10,7 @@ data_nodes_resistances = readmatrix('input-node-to-node-resistances.xlsx');
 
 nodes_start = data_nodes_resistances(:,1);
 nodes_end = data_nodes_resistances(:,2);
-% % thermal_resis = data_nodes_resistances(:,3);
+thermal_resis = data_nodes_resistances(:,3);
 
 % Power losses of each Node
 data_nodes_power_losses = readmatrix('input-nodes-power-losses.xlsx');
@@ -36,36 +36,36 @@ start_end = [nodes_start,nodes_end];
 unique_nodes = unique(start_end(:).')';
 
 % sort nodes
- sort(unique_nodes);
+sort(unique_nodes);
 
 
 %% [NEW] get RESIS MATRIX from .RMF matrix data of MOTOR-CAD
 
-data_rmf_resis_matrix = readmatrix('input-rmf-resis-matrix.xlsx');
-
-% % % data_rmf_resis_matrix == data_rmf_resis_matrix';
-% % % 
-% % % if ~issymmetric (data_rmf_resis_matrix)
-% % %     error('imported resistance matrix is NOT SYMMETRIC')
-% % % end
-
-k = 0;
-imported_resis_matrix = zeros(1);
-for i = 1:length(data_rmf_resis_matrix(1,:))
-    for j = i:length(data_rmf_resis_matrix(:,1))
-        if ~ismember(data_rmf_resis_matrix(i,j),[0,1e9,2e9,3e9,4e9])
-            k = k+1;
-            imported_resis_matrix(k,1) = unique_nodes(i);
-            imported_resis_matrix(k,2) = unique_nodes(j);
-            imported_resis_matrix(k,3) = data_rmf_resis_matrix(i,j);
-        end
-    end
-end
-
-
-nodes_start = imported_resis_matrix(:,1);
-nodes_end = imported_resis_matrix(:,2);
-thermal_resis = imported_resis_matrix(:,3);
+% data_rmf_resis_matrix = readmatrix('input-rmf-resis-matrix.xlsx');
+%
+% % % % data_rmf_resis_matrix == data_rmf_resis_matrix';
+% % % %
+% % % % if ~issymmetric (data_rmf_resis_matrix)
+% % % %     error('imported resistance matrix is NOT SYMMETRIC')
+% % % % end
+%
+% k = 0;
+% imported_resis_matrix = zeros(1);
+% for i = 1:length(data_rmf_resis_matrix(1,:))
+%     for j = i:length(data_rmf_resis_matrix(:,1))
+%         if ~ismember(data_rmf_resis_matrix(i,j),[0,1e9,2e9,3e9,4e9])
+%             k = k+1;
+%             imported_resis_matrix(k,1) = unique_nodes(i);
+%             imported_resis_matrix(k,2) = unique_nodes(j);
+%             imported_resis_matrix(k,3) = data_rmf_resis_matrix(i,j);
+%         end
+%     end
+% end
+%
+%
+% nodes_start = imported_resis_matrix(:,1);
+% nodes_end = imported_resis_matrix(:,2);
+% thermal_resis = imported_resis_matrix(:,3);
 
 %%% imported_resis_matrix - data_nodes_resistances
 
@@ -81,7 +81,7 @@ for j =1:length(fixed_nodes)
     power_nodes(fixedIndex - k) = [];
 
     capacitance_nodes_vector(fixedIndex - k) = [];
-    
+
     k = k+1;
 end
 
@@ -97,12 +97,12 @@ unknown_nodes ( ismember(unique_nodes,fixed_nodes)) = [];
 
 resisMatrix = zeros(length(unknown_nodes));
 
- % constVector = zeros(length(unknown_nodes),1);
+% constVector = zeros(length(unknown_nodes),1);
 
- constVector = power_nodes ;
+constVector = power_nodes ;
 
 for i = 1 : length(nodes_start)
-  
+
     startIndex = find(unknown_nodes == nodes_start(i));
     endIndex = find(unknown_nodes == nodes_end(i));
     % assign zero to empty double
@@ -115,7 +115,7 @@ for i = 1 : length(nodes_start)
 
     % assign Resistance values to NONDIAGONAL unknown Elements
     if ~(ismember(nodes_start(i),fixed_nodes) || ismember(nodes_end(i),fixed_nodes))
-        
+
         resisMatrix(startIndex,endIndex) = thermal_resis(i)^-1;
         resisMatrix(endIndex,startIndex) = thermal_resis(i)^-1;
 
@@ -130,7 +130,7 @@ for i = 1 : length(nodes_start)
             constIndex = startIndex ;
             fixedIndex = find(fixed_nodes==endIndex);
         end
-        
+
         % assign Generated Power by fixed point and its Resistance
         constVector(constIndex) = constVector(constIndex) +  fixed_nodes_temp(fixedIndex) *thermal_resis(i)^-1;
         % assign resis values to DIAGONAL elements
@@ -153,9 +153,9 @@ align = [-1,-1];
 
 for j =1:length(fixed_nodes)
 
-   fixedIndex = find(unique_nodes == fixed_nodes(j));
+    fixedIndex = find(unique_nodes == fixed_nodes(j));
 
-   T_all_steady = insert(fixed_nodes_temp(j),T_all_steady,fixedIndex,align(j));
+    T_all_steady = insert(fixed_nodes_temp(j),T_all_steady,fixedIndex,align(j));
 
 end
 
@@ -169,126 +169,138 @@ results_table_steady. Properties. VariableNames = {'Nodes Labels','Steady Temper
 
 writetable(results_table_steady,'output-steady-temperatures.xlsx')
 
-%% Prepare DATA for Transient Solution
+%% Transient Solution: Prepare DATA, Initialization, Solution 
 
 global A B
 
+time_span = 2e5;
+
 if ismember(0,capacitance_nodes_vector)
 
-nonzero_capacitannce_nodes = capacitance_nodes_vector;
-ii = 0;
-zero_index = double.empty;
-nonzero_index = double.empty;
-for i = 1:length(capacitance_nodes_vector(:,1))
-    ii = ii+1;
-    if capacitance_nodes_vector(i) == 0
-       nonzero_capacitannce_nodes(ii) = [];
-     %  nonzero_capacitannce_nodes(ii) = [];
-       ii=ii-1;
-       % find the index of ZERO capacitance elements
-       zero_index = [zero_index;i];
-    else
-        % find the index of NONZERO capacitance elements
-        nonzero_index = [nonzero_index;i];
+    nonzero_capacitannce_nodes = capacitance_nodes_vector;
+    ii = 0;
+    zero_index = double.empty;
+    nonzero_index = double.empty;
+    for i = 1:length(capacitance_nodes_vector(:,1))
+        ii = ii+1;
+        if capacitance_nodes_vector(i) == 0
+            nonzero_capacitannce_nodes(ii) = [];
+            %  nonzero_capacitannce_nodes(ii) = [];
+            ii=ii-1;
+            % find the index of ZERO capacitance elements
+            zero_index = [zero_index;i];
+        else
+            % find the index of NONZERO capacitance elements
+            nonzero_index = [nonzero_index;i];
+        end
     end
-end
 
-% REORDER matrixes of Power Loss & Capacitance
+    % REORDER matrixes of Power Loss & Capacitance
 
-%%%% [THIS LINE IS WRONG] modified_resistance_matrix = resisMatrix([nonzero_index;zero_index],:);
-modified_const_vector = constVector([nonzero_index;zero_index],:);
-modified_capacitances_vector = capacitance_nodes_vector([nonzero_index;zero_index],:);
+    %%%% [THIS LINE IS WRONG] modified_resistance_matrix = resisMatrix([nonzero_index;zero_index],:);
+    modified_const_vector = constVector([nonzero_index;zero_index],:);
+    modified_capacitances_vector = capacitance_nodes_vector([nonzero_index;zero_index],:);
 
-% convert capacitance vector to matrix
-modified_capacitance_matrix = diag(modified_capacitances_vector);
+    % convert capacitance vector to matrix
+    modified_capacitance_matrix = diag(modified_capacitances_vector);
 
-C1 = modified_capacitance_matrix(1:ii,1:ii);
+    C1 = modified_capacitance_matrix(1:ii,1:ii);
 
-% modify (reorder) Constant vector
+    % modify (reorder) Constant vector
 
-B1 = modified_const_vector(1:ii);
-B2 = modified_const_vector(ii+1:end);
+    B1 = modified_const_vector(1:ii);
+    B2 = modified_const_vector(ii+1:end);
 
-% MAKE MODIFIED resis matrix
+    % MAKE MODIFIED resis matrix
 
-modified_resistance_matrix = ...
-    makeResisMatrix...
-    ([nonzero_index;zero_index],data_nodes_resistances,fixed_nodes);
+    modified_resistance_matrix = ...
+        makeResisMatrix...
+        ([nonzero_index;zero_index],data_nodes_resistances,fixed_nodes);
 
-%%%%%%%%%%% this line a just added to check the idea of replacing
-%%%%%%%%%%% the DIAGONAL OF RESISMATRIX WITH MODIFIED ONE  %%%%%%%%%%%
+    %%%%%%%%%%% this line a just added to check the idea of replacing
+    %%%%%%%%%%% the DIAGONAL OF RESISMATRIX WITH MODIFIED ONE  %%%%%%%%%%%
 
-mainResisMatrixDiag = diag(resisMatrix);
+    mainResisMatrixDiag = diag(resisMatrix);
 
-modifiedResisMatrixDiag = mainResisMatrixDiag([nonzero_index;zero_index],:);
+    modifiedResisMatrixDiag = mainResisMatrixDiag([nonzero_index;zero_index],:);
 
-for i = 1:length(resisMatrix(:,1))
-    modified_resistance_matrix(i,i) = modifiedResisMatrixDiag(i);
-end
+    for i = 1:length(resisMatrix(:,1))
+        modified_resistance_matrix(i,i) = modifiedResisMatrixDiag(i);
+    end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%% THE ABOVE IDEA SEEMS TO BE WORKING AS THE DATA IS PHYSICALLY RIGHT
-%%%%%% %%%
-A1 = modified_resistance_matrix(1:ii,1:ii);
-A2 = modified_resistance_matrix(1:ii,ii+1:end);
-A3 = modified_resistance_matrix(ii+1:end,1:ii);
-A4 = modified_resistance_matrix(ii+1:end,ii+1:end);
+    %%%%%% THE ABOVE IDEA SEEMS TO BE WORKING AS THE DATA IS PHYSICALLY RIGHT
+    %%%%%% %%%
+    A1 = modified_resistance_matrix(1:ii,1:ii);
+    A2 = modified_resistance_matrix(1:ii,ii+1:end);
+    A3 = modified_resistance_matrix(ii+1:end,1:ii);
+    A4 = modified_resistance_matrix(ii+1:end,ii+1:end);
 
-A = C1\(A1-A2*(A4\A3));
- 
-B = C1\(B1-(A2*(A4\B2)));
+    A = C1\(A1-A2*(A4\A3));
 
+    B = C1\(B1-(A2*(A4\B2)));
+
+    % Initialization
+
+    T0 = ones(ii,1)*70;
+    % Transient Solution
+
+
+    %  SOLUTION
+
+    [t,T_transient_nonzero] = ode45(@lptn_ode,[0 time_span],T0);
+
+    % find zero capacitance nodes Temperatures
+    T_transient_zero = -A4\A3*T_transient_nonzero';
+
+    T_transient_zero = T_transient_zero';
+
+    % combine NONZERO & ZERO Solutions of final timespan
+    T_transient_END = [T_transient_nonzero(end,:)';T_transient_zero(end,:)'];
+
+    %T_transient_END = T_transient_END([nonzero_index;zero_index],:);
+
+    modified_index = [nonzero_index;zero_index];
+
+    stored_indexes = double.empty;
+
+    for i =1 :length(modified_index)
+
+        if i ~=modified_index(i) && ~ismember(i,stored_indexes)
+            temp1 = T_transient_END(i);
+            temp2 = T_transient_END(modified_index(i));
+            stored_indexes = [stored_indexes;i,modified_index(i)];
+            T_transient_END(i) = temp2;
+            T_transient_END(modified_index(i)) = temp1;
+
+        end
+
+    end
+
+    %T_transient_END = [T_transient_END(2:end);T_transient_END(1)];
 
 else
 
     A = diag(capacitance_nodes_vector) \  resisMatrix;
 
     B = diag(capacitance_nodes_vector) \ constVector;
-end
 
-%% Transient Solution
+    % Initialization
 
+    T0 = ones(length(constVector),1)*70;
 
+    % Solution
 
-% B = C1\(B1) ;
+    [t,T_transient_normal] = ode45(@lptn_ode,[0 time_span],T0);
 
-% Initialization and Solution
-
-T0 = ones(ii,1)*70;
-
-[t,T_transient_nonzero] = ode45(@lptn_ode,[0 10000],T0);
-
-% find zero capacitance nodes Temperatures
-T_transient_zero = -A4\A3*T_transient_nonzero';
-
-T_transient_zero = T_transient_zero';
-
-% combine NONZERO & ZERO Solutions of final timespan
-T_transient_END = [T_transient_nonzero(end,:)';T_transient_zero(end,:)'];
-
-%T_transient_END = T_transient_END([nonzero_index;zero_index],:);
-
-modified_index = [nonzero_index;zero_index];
-
-stored_indexes = double.empty;
-
-for i =1 :length(modified_index)
-
-    if i ~=modified_index(i) && ~ismember(i,stored_indexes)
-        temp1 = T_transient_END(i);
-        temp2 = T_transient_END(modified_index(i));
-        stored_indexes = [stored_indexes;i,modified_index(i)];
-        T_transient_END(i) = temp2;
-        T_transient_END(modified_index(i)) = temp1;
-        
-    end
+    T_transient_END = T_transient_normal(end,:)';
 
 end
 
-%T_transient_END = [T_transient_END(2:end);T_transient_END(1)];
+%
 
-%% add fixed nodes to the final Steady solution
+%% add fixed nodes to END OF TIME SPAN transient solution
 
 % T_all_transient includes the fixed nodes too
 T_all_transient = T_transient_END;
@@ -297,16 +309,16 @@ align = [-1,-1];
 
 for j =1:length(fixed_nodes)
 
-   fixedIndex = find(unique_nodes == fixed_nodes(j));
+    fixedIndex = find(unique_nodes == fixed_nodes(j));
 
-   T_all_transient = insert(fixed_nodes_temp(j),T_all_transient,fixedIndex,align(j));
+    T_all_transient = insert(fixed_nodes_temp(j),T_all_transient,fixedIndex,align(j));
 
 end
 
- 
+
 %% get the Nodes Lables and Make the TRANSIENT Results Table as .xlsx
 
-% THIS VARIABLE IS ALLREADY DEFINED 
+% THIS VARIABLE IS ALLREADY DEFINED
 % data_nodes_labels = readtable('input-nodes-labels.xlsx');
 
 results_table_transient = [data_nodes_labels(:,2),table(T_all_transient)];
