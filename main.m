@@ -173,7 +173,7 @@ writetable(results_table_steady,'output-steady-temperatures.xlsx')
 
 global A B
 
-time_span = 2e5;
+time_span = 2e4;
 
 if ismember(0,capacitance_nodes_vector)
 
